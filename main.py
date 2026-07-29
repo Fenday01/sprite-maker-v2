@@ -39,6 +39,7 @@ class PixelArtApp:
         self.height_var = tk.StringVar(value=str(self.grid_height))
         self.brush_size_var = tk.IntVar(value=1)
         self.brush_shape_var = tk.StringVar(value="Square")
+        self.last_paint_tool = "Square"
         self.sprite_name_var = tk.StringVar(value="sprite")
         self.grid_summary_var = tk.StringVar()
         self.status_var = tk.StringVar(
@@ -434,8 +435,39 @@ class PixelArtApp:
         return help_text[tool_name]
 
     def _select_tool(self, tool_name):
+        current_tool = self.brush_shape_var.get()
+        if (
+            tool_name == "Select"
+            and current_tool in ("Select", "Paste")
+        ):
+            return self.cancel_selection()
+        if tool_name != "Select":
+            self.last_paint_tool = tool_name
         self.brush_shape_var.set(tool_name)
         self.canvas.focus_set()
+        return "break"
+
+    def cancel_selection(self, _event=None):
+        had_selection = self.selection_bounds is not None
+        selection_tool_active = (
+            self.brush_shape_var.get() in ("Select", "Paste")
+        )
+        self.selection_start = None
+        self.selection_bounds = None
+        self.canvas.delete("selection")
+
+        if selection_tool_active:
+            self.brush_shape_var.set(self.last_paint_tool)
+
+        self.canvas.focus_set()
+        if had_selection or selection_tool_active:
+            self.status_var.set(
+                f"Selection cleared  •  {self.last_paint_tool} brush active"
+            )
+        else:
+            self.status_var.set(
+                "Left-drag to draw  |  Right-drag to erase"
+            )
         return "break"
 
     def _refresh_tool_buttons(self):
@@ -611,7 +643,7 @@ class PixelArtApp:
         self.root.bind("<Control-Shift-less>", self._decrease_brush_size)
         self.root.bind("<Control-Shift-period>", self._increase_brush_size)
         self.root.bind("<Control-Shift-comma>", self._decrease_brush_size)
-        self.root.bind("<Escape>", lambda _event: self.canvas.focus_set())
+        self.root.bind("<Escape>", self.cancel_selection)
 
     def _initial_layout(self):
         try:
