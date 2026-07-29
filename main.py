@@ -604,7 +604,9 @@ class PixelArtApp:
         self.root.bind("<Control-z>", self.undo)
         self.root.bind("<Control-y>", self.redo)
         self.root.bind("<Control-c>", self.copy_selection)
+        self.root.bind("<Control-x>", self.cut_selection)
         self.root.bind("<Control-v>", self.activate_selection_brush)
+        self.root.bind("<Delete>", self.delete_selection)
         self.root.bind("<Control-Shift-greater>", self._increase_brush_size)
         self.root.bind("<Control-Shift-less>", self._decrease_brush_size)
         self.root.bind("<Control-Shift-period>", self._increase_brush_size)
@@ -1180,8 +1182,7 @@ class PixelArtApp:
         self._refresh_brush_preview()
 
     def copy_selection(self, _event=None):
-        focused_widget = self.root.focus_get()
-        if isinstance(focused_widget, (tk.Entry, tk.Text, ttk.Entry)):
+        if self._focus_is_text_input():
             return None
         if self.selection_bounds is None:
             self.status_var.set(
@@ -1189,6 +1190,57 @@ class PixelArtApp:
             )
             return "break"
 
+        width, height, active_pixels = self._copy_selected_pixels()
+        self.status_var.set(
+            f"Copied {width} × {height} selection "
+            f"({active_pixels} set pixels)  •  Ctrl+V makes it a brush"
+        )
+        return "break"
+
+    def cut_selection(self, _event=None):
+        if self._focus_is_text_input():
+            return None
+        if self.selection_bounds is None:
+            self.status_var.set(
+                "Select a rectangular area before using Ctrl+X."
+            )
+            return "break"
+
+        width, height, _active_pixels = self._copy_selected_pixels()
+        removed_pixels = self._clear_selected_pixels()
+        self.status_var.set(
+            f"Cut {width} × {height} selection "
+            f"({removed_pixels} set pixels removed)  •  "
+            "Ctrl+V makes it a brush"
+        )
+        return "break"
+
+    def delete_selection(self, _event=None):
+        if self._focus_is_text_input():
+            return None
+        if self.selection_bounds is None:
+            self.status_var.set(
+                "Select a rectangular area before pressing Delete."
+            )
+            return "break"
+
+        removed_pixels = self._clear_selected_pixels()
+        if removed_pixels:
+            self.status_var.set(
+                f"Deleted {removed_pixels} set pixels from the selection."
+            )
+        else:
+            self.status_var.set("The selected area is already clear.")
+        return "break"
+
+    def _focus_is_text_input(self):
+        focused_widget = self.root.focus_get()
+        return isinstance(
+            focused_widget,
+            (tk.Entry, tk.Text, ttk.Entry, ttk.Spinbox),
+        )
+
+    def _copy_selected_pixels(self):
         x1, y1, x2, y2 = self.selection_bounds
         self.clipboard_pixels = [
             self.pixels[y][x1:x2 + 1]
@@ -1199,15 +1251,29 @@ class PixelArtApp:
         active_pixels = sum(
             sum(row) for row in self.clipboard_pixels
         )
-        self.status_var.set(
-            f"Copied {width} × {height} selection "
-            f"({active_pixels} set pixels)  •  Ctrl+V makes it a brush"
+        return width, height, active_pixels
+
+    def _clear_selected_pixels(self):
+        x1, y1, x2, y2 = self.selection_bounds
+        removed_pixels = sum(
+            self.pixels[y][x]
+            for y in range(y1, y2 + 1)
+            for x in range(x1, x2 + 1)
         )
-        return "break"
+        if not removed_pixels:
+            return 0
+
+        self._begin_history_action()
+        for y in range(y1, y2 + 1):
+            for x in range(x1, x2 + 1):
+                self.pixels[y][x] = 0
+        self._commit_history_action()
+        self.render_canvas()
+        self._schedule_output_update()
+        return removed_pixels
 
     def activate_selection_brush(self, _event=None):
-        focused_widget = self.root.focus_get()
-        if isinstance(focused_widget, (tk.Entry, tk.Text, ttk.Entry)):
+        if self._focus_is_text_input():
             return None
         if not self.clipboard_pixels:
             self.status_var.set(

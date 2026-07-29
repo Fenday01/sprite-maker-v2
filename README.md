@@ -39,8 +39,9 @@ package dependencies.
 | Undo | `Ctrl+Z` |
 | Redo | `Ctrl+Y` |
 | Copy selection | `Ctrl+C` |
+| Cut selection | `Ctrl+X` |
+| Delete selected pixels | `Delete` |
 | Use copied selection as a brush | `Ctrl+V` |
 | Increase brush size | `Ctrl+Shift+>` |
 | Decrease brush size | `Ctrl+Shift+<` |
 | Copy generated C output | `Ctrl+Shift+C` |
-
